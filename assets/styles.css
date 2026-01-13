@@ -998,11 +998,7 @@ body {
 
 @media (max-width: 1280px) {
     .dashboard-grid {
-        grid-template-columns: var(--sidebar-width) 1fr;
-    }
-
-    .context-panel {
-        display: none;
+        grid-template-columns: var(--sidebar-width) 1fr var(--context-panel-width);
     }
 }
 
