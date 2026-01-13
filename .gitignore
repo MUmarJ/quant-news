@@ -83,3 +83,4 @@ Thumbs.db
 cache/
 screenshots/
 .playwright-mcp/
+.claude/settings.local.json
