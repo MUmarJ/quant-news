@@ -31,9 +31,9 @@ Open http://127.0.0.1:8050 in your browser.
 | Variable | Description |
 |----------|-------------|
 | `OPENAI_API_KEY` | OpenAI API key for AI summaries |
-| `NEWS_API_KEY` | News API key for live news feed |
+| `NEWS_API_KEY` | Alpha Vantage News API key for live news feed |
 
-Alternatively, connect to a local LLM via LM Studio on port 1234.
+Alternatively, connect to a local LLM via LM Studio on port 1234. Yfinance is used by default for News API if no Alpha Vantage key is provided.
 
 ## Tech Stack
 
