@@ -1,0 +1,22 @@
+# Quant News Tracker - Development Dependencies
+
+-r requirements.txt
+
+# Code Formatting
+black>=24.0.0
+isort>=5.13.0
+
+# Linting
+flake8>=7.0.0
+mypy>=1.8.0
+
+# Type Stubs
+pandas-stubs>=2.0.0
+types-requests>=2.31.0
+
+# Testing
+pytest>=8.0.0
+pytest-cov>=4.1.0
+
+# Pre-commit Hooks
+pre-commit>=3.6.0

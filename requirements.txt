@@ -1,0 +1,27 @@
+# Quant News Tracker - Production Dependencies
+
+# Web Framework
+dash>=2.15.0
+dash-bootstrap-components>=1.5.0
+plotly>=5.18.0
+
+# Data Sources
+yfinance>=0.2.36
+requests>=2.31.0
+
+# Data Processing
+pandas>=2.0.0
+numpy>=1.24.0
+
+# Data Caching
+duckdb>=0.10.0
+pyarrow>=15.0.0
+
+# Technical Analysis
+ta>=0.11.0
+
+# LLM Integration
+openai>=1.12.0
+
+# Configuration
+python-dotenv>=1.0.0
