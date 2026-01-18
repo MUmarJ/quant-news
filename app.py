@@ -25,6 +25,7 @@ from callbacks.chart_callbacks import (
 )
 from config import APP, COLORS
 from layouts.components import (
+    calculate_period_label,
     create_metric_card,
     create_news_card,
     create_symbol_tag,
@@ -407,16 +408,22 @@ def update_summary_cards(stock_data, symbols):
         metrics = stock_data[symbol].get("metrics", {})
         signals = stock_data[symbol].get("signals", {})
 
-        # Current price card
+        # Current price card with dynamic period label
         price = metrics.get("end_price", 0)
         total_return = metrics.get("total_return", 0)
+        start_date = metrics.get("start_date", "")
+        end_date = metrics.get("end_date", "")
+
+        # Calculate dynamic period label
+        period_label = calculate_period_label(start_date, end_date)
+
         cards.append(
             create_metric_card(
                 title=symbol,
                 value=f"${price:,.2f}",
                 change=f"{total_return:+.2f}%",
                 change_positive=total_return > 0,
-                subtitle="1Y Return",
+                subtitle=period_label,
             )
         )
 

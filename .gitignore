@@ -84,3 +84,7 @@ cache/
 screenshots/
 .playwright-mcp/
 .claude/settings.local.json
+
+# Data results
+alpha_vantage_data/
+*.zip

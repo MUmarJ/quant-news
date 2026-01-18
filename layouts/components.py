@@ -4,12 +4,50 @@ This module provides styled components following the design system
 defined in PROJECT.md and config.py.
 """
 
+from datetime import datetime
 from typing import Any, Optional
 
 import dash_bootstrap_components as dbc
 from dash import dcc, html
 
 from config import COLORS, SPACING
+
+
+def calculate_period_label(start_date: str, end_date: str) -> str:
+    """Calculate human-readable period label from date range.
+
+    Args:
+        start_date: Start date in YYYY-MM-DD format
+        end_date: End date in YYYY-MM-DD format
+
+    Returns:
+        Human-readable period label (e.g., "1Y Return", "6M Return", "2Y Return")
+    """
+    try:
+        start = datetime.strptime(start_date, "%Y-%m-%d")
+        end = datetime.strptime(end_date, "%Y-%m-%d")
+
+        # Calculate difference in days
+        days_diff = (end - start).days
+
+        # Calculate approximate months and years
+        months = round(days_diff / 30.44)  # Average days per month
+        years = round(days_diff / 365.25, 1)  # Account for leap years
+
+        # Determine best label
+        if days_diff < 45:  # Less than 1.5 months
+            return f"{days_diff}D Return"
+        elif days_diff < 365:  # Less than 1 year
+            return f"{months}M Return"
+        elif years < 2:  # Between 1-2 years
+            return "1Y Return"
+        else:
+            # For longer periods, show years (e.g., "2Y Return", "3Y Return")
+            years_int = round(years)
+            return f"{years_int}Y Return"
+    except (ValueError, TypeError):
+        # Fallback if date parsing fails
+        return "Period Return"
 
 
 def create_metric_card(

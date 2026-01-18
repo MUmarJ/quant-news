@@ -173,6 +173,10 @@ def fetch_yfinance_news(symbol: str, max_articles: int = 10) -> list[NewsArticle
 def fetch_alpha_vantage_news(
     symbol: str,
     max_articles: int = 10,
+    topics: Optional[str] = None,
+    time_from: Optional[str] = None,
+    time_to: Optional[str] = None,
+    sort: str = "LATEST",
 ) -> list[NewsArticle]:
     """Fetch news from Alpha Vantage News API.
 
@@ -181,6 +185,14 @@ def fetch_alpha_vantage_news(
     Args:
         symbol: Stock ticker symbol.
         max_articles: Maximum number of articles to return.
+        topics: Comma-separated topics to filter by (e.g., "earnings,technology").
+                Available topics: earnings, ipo, mergers_and_acquisitions,
+                financial_markets, economy_fiscal, economy_monetary, economy_macro,
+                energy_transportation, finance, life_sciences, manufacturing,
+                real_estate, retail_wholesale, technology
+        time_from: Start time in YYYYMMDDTHHMM format (e.g., "20260101T0000")
+        time_to: End time in YYYYMMDDTHHMM format (e.g., "20260115T2359")
+        sort: Sort order - "LATEST", "EARLIEST", or "RELEVANCE" (default: LATEST)
 
     Returns:
         List of NewsArticle objects with sentiment data.
@@ -194,7 +206,16 @@ def fetch_alpha_vantage_news(
             "tickers": symbol.upper(),
             "limit": max_articles,
             "apikey": API.ALPHA_VANTAGE_API_KEY,
+            "sort": sort,
         }
+
+        # Add optional filters
+        if topics:
+            params["topics"] = topics
+        if time_from:
+            params["time_from"] = time_from
+        if time_to:
+            params["time_to"] = time_to
 
         response = requests.get(
             API.ALPHA_VANTAGE_BASE_URL,
@@ -292,6 +313,10 @@ def fetch_news(
     max_articles: int = 10,
     prefer_alpha_vantage: bool = True,
     include_price_change: bool = True,
+    topics: Optional[str] = None,
+    time_from: Optional[str] = None,
+    time_to: Optional[str] = None,
+    sort: str = "LATEST",
 ) -> list[NewsArticle]:
     """Fetch news from available sources.
 
@@ -302,6 +327,10 @@ def fetch_news(
         max_articles: Maximum number of articles to return.
         prefer_alpha_vantage: If True, try Alpha Vantage first.
         include_price_change: If True, fetch and include current stock price change.
+        topics: Comma-separated topics to filter by (Alpha Vantage only).
+        time_from: Start time in YYYYMMDDTHHMM format (Alpha Vantage only).
+        time_to: End time in YYYYMMDDTHHMM format (Alpha Vantage only).
+        sort: Sort order - "LATEST", "EARLIEST", or "RELEVANCE" (Alpha Vantage only).
 
     Returns:
         List of NewsArticle objects, sorted by date (newest first).
@@ -310,7 +339,14 @@ def fetch_news(
 
     # Try Alpha Vantage first (has sentiment)
     if prefer_alpha_vantage and API.ALPHA_VANTAGE_API_KEY:
-        articles = fetch_alpha_vantage_news(symbol, max_articles)
+        articles = fetch_alpha_vantage_news(
+            symbol,
+            max_articles,
+            topics=topics,
+            time_from=time_from,
+            time_to=time_to,
+            sort=sort,
+        )
 
     # Fallback to yfinance if no results
     if not articles:
