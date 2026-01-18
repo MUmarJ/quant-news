@@ -27,8 +27,12 @@ from config import APP, COLORS
 from layouts.components import (
     calculate_period_label,
     create_metric_card,
-    create_news_card,
+    create_overview_empty_state,
+    create_recommendation_banner,
+    create_sentiment_breakdown,
     create_symbol_tag,
+    create_top_headlines,
+    create_news_quick_stats,
 )
 from layouts.main_layout import create_layout
 from services.analytics import (
@@ -39,11 +43,8 @@ from services.analytics import (
 from services.cache_service import get_cache
 from services.llm_service import get_llm
 from services.news_service import (
-    NewsArticle,
     fetch_news,
     fetch_news_cached,
-    format_time_ago,
-    get_sentiment_summary,
 )
 
 # Initialize Dash app with Bootstrap dark theme
@@ -480,220 +481,570 @@ def update_cache_enabled(toggle_value):
     prevent_initial_call=True,
 )
 def fetch_news_data(symbols, refresh_click, cache_enabled):
-    """Fetch news once and store for reuse by other callbacks.
+    """Fetch news for ALL selected symbols.
 
-    This eliminates duplicate API calls - news is fetched once here,
-    then consumed by both update_news_feed and update_ai_summary.
+    Returns a dict with articles organized by symbol for per-symbol tabs.
     """
     if not symbols:
         return {}
 
-    symbol = symbols[0]
+    articles_by_symbol = {}
 
-    # Use cached or uncached fetch based on toggle
-    if cache_enabled:
-        articles = fetch_news_cached(symbol, max_articles=5)
-    else:
-        articles = fetch_news(symbol, max_articles=5)
+    for symbol in symbols:
+        # Use cached or uncached fetch based on toggle
+        if cache_enabled:
+            articles = fetch_news_cached(symbol, max_articles=10)
+        else:
+            articles = fetch_news(symbol, max_articles=10)
 
-    if not articles:
-        return {"symbol": symbol, "articles": [], "fetched_at": datetime.now().isoformat()}
+        # Serialize articles for JSON storage
+        articles_data = [
+            {
+                "id": a.id,
+                "symbol": a.symbol,
+                "title": a.title,
+                "source": a.source,
+                "url": a.url,
+                "published_at": a.published_at.isoformat(),
+                "summary": a.summary,
+                "sentiment": a.sentiment,
+                "sentiment_score": a.sentiment_score,
+                "impact": a.impact,
+                "price_change_percent": a.price_change_percent,
+            }
+            for a in (articles or [])
+        ]
 
-    # Serialize articles for JSON storage
-    articles_data = [
-        {
-            "id": a.id,
-            "symbol": a.symbol,
-            "title": a.title,
-            "source": a.source,
-            "url": a.url,
-            "published_at": a.published_at.isoformat(),
-            "summary": a.summary,
-            "sentiment": a.sentiment,
-            "sentiment_score": a.sentiment_score,
-            "impact": a.impact,
-            "price_change_percent": a.price_change_percent,
-        }
-        for a in articles
-    ]
+        articles_by_symbol[symbol] = articles_data
 
     return {
-        "symbol": symbol,
-        "articles": articles_data,
+        "symbols": symbols,
+        "articles_by_symbol": articles_by_symbol,
         "fetched_at": datetime.now().isoformat(),
     }
 
 
 @callback(
-    Output("news-feed", "children"),
-    Output("sentiment-display", "children"),
-    Output("news-meta", "children"),
+    Output("ai-analysis-store", "data"),
     Input("news-data-store", "data"),
+    State("selected-symbols", "data"),
 )
-def update_news_feed(news_data):
-    """Update news feed and sentiment display from cached news data."""
-    if not news_data or not news_data.get("articles"):
-        empty_news = html.Div(
-            [
-                html.I(className="bi bi-newspaper", style={"fontSize": "24px", "opacity": "0.5", "display": "block", "marginBottom": "8px"}),
-                html.Span("Select stocks to view latest news"),
-            ],
-            className="empty-state",
-            style={"padding": "24px 16px"},
-        )
-        empty_sentiment = html.Div(
-            [
-                html.Div(
-                    [
-                        html.Div("-", className="sentiment-count", style={"color": COLORS.TEXT_MUTED}),
-                        html.Div("Bullish", className="sentiment-label"),
-                    ],
-                    className="sentiment-item",
-                ),
-                html.Div(
-                    [
-                        html.Div("-", className="sentiment-count", style={"color": COLORS.TEXT_MUTED}),
-                        html.Div("Neutral", className="sentiment-label"),
-                    ],
-                    className="sentiment-item",
-                ),
-                html.Div(
-                    [
-                        html.Div("-", className="sentiment-count", style={"color": COLORS.TEXT_MUTED}),
-                        html.Div("Bearish", className="sentiment-label"),
-                    ],
-                    className="sentiment-item",
-                ),
-            ],
-            className="sentiment-display",
-        )
-        return empty_news, empty_sentiment, ""
+def generate_ai_analysis(news_data, symbols):
+    """Generate structured AI analysis for each symbol and overall.
 
-    # Deserialize articles from store
-    articles = [
-        NewsArticle(
-            id=a["id"],
-            symbol=a["symbol"],
-            title=a["title"],
-            source=a["source"],
-            url=a["url"],
-            published_at=datetime.fromisoformat(a["published_at"]),
-            summary=a.get("summary"),
-            sentiment=a.get("sentiment"),
-            sentiment_score=a.get("sentiment_score"),
-            impact=a.get("impact"),
-            price_change_percent=a.get("price_change_percent"),
-        )
-        for a in news_data["articles"]
-    ]
+    Returns:
+        {
+            "overall": {...combined analysis...},
+            "by_symbol": {
+                "AAPL": {...per-symbol analysis...},
+                "GOOGL": {...},
+            }
+        }
+    """
+    if not news_data or not news_data.get("articles_by_symbol"):
+        return {}
 
-    if not articles:
-        no_news = html.Div(
-            [
-                html.I(className="bi bi-inbox", style={"fontSize": "24px", "opacity": "0.5", "display": "block", "marginBottom": "8px"}),
-                html.Span("No recent news available"),
-            ],
-            className="empty-state",
-            style={"padding": "24px 16px"},
-        )
-        return no_news, "", ""
+    llm = get_llm()
+    articles_by_symbol = news_data.get("articles_by_symbol", {})
 
-    # Create news cards
-    news_cards = [
-        create_news_card(
-            title=article.title,
-            source=article.source,
-            time_ago=format_time_ago(article.published_at),
-            summary=article.summary,
-            sentiment=article.sentiment,
-            url=article.url,
-            impact=article.impact,
-            price_change_percent=article.price_change_percent,
-            symbol=article.symbol,
-        )
-        for article in articles
-    ]
+    result = {
+        "overall": None,
+        "by_symbol": {},
+        "generated_at": datetime.now().isoformat(),
+    }
 
-    # Calculate sentiment summary
-    sentiment = get_sentiment_summary(articles)
+    # Collect all articles for overall analysis
+    all_articles = []
 
-    sentiment_display = html.Div(
-        [
-            html.Div(
-                [
-                    html.Div(str(sentiment["bullish"]), className="sentiment-count", style={"color": COLORS.POSITIVE}),
-                    html.Div("Bullish", className="sentiment-label"),
-                ],
-                className="sentiment-item",
-            ),
-            html.Div(
-                [
-                    html.Div(str(sentiment["neutral"]), className="sentiment-count", style={"color": COLORS.TEXT_SECONDARY}),
-                    html.Div("Neutral", className="sentiment-label"),
-                ],
-                className="sentiment-item",
-            ),
-            html.Div(
-                [
-                    html.Div(str(sentiment["bearish"]), className="sentiment-count", style={"color": COLORS.NEGATIVE}),
-                    html.Div("Bearish", className="sentiment-label"),
-                ],
-                className="sentiment-item",
-            ),
-        ],
-        className="sentiment-display",
-    )
+    # Generate per-symbol analysis
+    for symbol, articles in articles_by_symbol.items():
+        if not articles:
+            continue
 
-    # Build news meta info (article count and date range)
-    article_count = len(articles)
-    if articles:
-        oldest = min(a.published_at for a in articles)
-        newest = max(a.published_at for a in articles)
-        # Format date range
-        if oldest.date() == newest.date():
-            date_range = newest.strftime("%b %d")
-        else:
-            date_range = f"{oldest.strftime('%b %d')} - {newest.strftime('%b %d')}"
-        news_meta = f"{article_count} articles | {date_range}"
-    else:
-        news_meta = ""
+        all_articles.extend(articles)
 
-    return news_cards, sentiment_display, news_meta
+        # Prepare articles for LLM
+        article_dicts = [
+            {
+                "title": a["title"],
+                "summary": a.get("summary") or "",
+                "sentiment": a.get("sentiment") or "neutral",
+            }
+            for a in articles
+        ]
+
+        # Get structured analysis for this symbol
+        analysis = llm.summarize_news_structured(article_dicts, [symbol])
+        if analysis:
+            result["by_symbol"][symbol] = analysis
+
+    # Generate overall analysis if we have articles from multiple symbols
+    if all_articles:
+        overall_dicts = [
+            {
+                "title": a["title"],
+                "summary": a.get("summary") or "",
+                "sentiment": a.get("sentiment") or "neutral",
+            }
+            for a in all_articles
+        ]
+        overall_analysis = llm.summarize_news_structured(overall_dicts, symbols or [])
+        if overall_analysis:
+            result["overall"] = overall_analysis
+
+    return result
 
 
 @callback(
-    Output("ai-summary", "children"),
+    Output("symbol-tabs-container", "children"),
+    Input("news-data-store", "data"),
+    Input("ai-analysis-store", "data"),
+    Input("selected-symbols", "data"),
+)
+def update_symbol_tabs(news_data, ai_analysis, symbols):
+    """Build dynamic tabs based on selected symbols.
+
+    Creates an "Overall" tab (always first, selected by default) plus one tab per symbol.
+    Each tab contains: recommendation banner, key developments, headlines, sentiment breakdown.
+    """
+    # Handle empty state
+    if not symbols:
+        return create_overview_empty_state()
+
+    # Show loading state if symbols selected but no news data yet
+    if not news_data or not news_data.get("articles_by_symbol"):
+        return _create_loading_state(symbols)
+
+    articles_by_symbol = news_data.get("articles_by_symbol", {}) if news_data else {}
+    analysis_by_symbol = ai_analysis.get("by_symbol", {}) if ai_analysis else {}
+    overall_analysis = ai_analysis.get("overall", {}) if ai_analysis else {}
+
+    # Build tabs list
+    tabs = []
+
+    # --- Overall Tab (always first) ---
+    all_articles = []
+    for sym_articles in articles_by_symbol.values():
+        all_articles.extend(sym_articles or [])
+
+    overall_content = _build_overall_tab_content(
+        articles_by_symbol=articles_by_symbol,
+        analysis_by_symbol=analysis_by_symbol,
+        overall_analysis=overall_analysis,
+        symbols=symbols,
+    )
+
+    tabs.append(
+        dbc.Tab(
+            overall_content,
+            label="Overall",
+            tab_id="tab-overall",
+            className="context-tab",
+        )
+    )
+
+    # --- Per-Symbol Tabs ---
+    for symbol in symbols:
+        sym_articles = articles_by_symbol.get(symbol, [])
+        sym_analysis = analysis_by_symbol.get(symbol, {})
+
+        tab_content = _build_tab_content(
+            articles=sym_articles,
+            analysis=sym_analysis,
+            symbols=[symbol],
+            is_overall=False,
+        )
+
+        tabs.append(
+            dbc.Tab(
+                tab_content,
+                label=symbol,
+                tab_id=f"tab-{symbol}",
+                className="context-tab",
+            )
+        )
+
+    return dbc.Tabs(
+        tabs,
+        id="symbol-tabs",
+        active_tab="tab-overall",
+        className="symbol-tabs",
+    )
+
+
+def _create_loading_state(symbols: list) -> html.Div:
+    """Create loading state while fetching news data.
+
+    Args:
+        symbols: List of symbols being loaded
+
+    Returns:
+        Loading state component with spinner and status message
+    """
+    symbols_text = ", ".join(symbols) if len(symbols) <= 3 else f"{len(symbols)} stocks"
+
+    return html.Div(
+        [
+            html.Div(
+                [
+                    # Spinner
+                    html.Div(
+                        [
+                            html.Div(className="loading-spinner"),
+                        ],
+                        className="loading-spinner-container",
+                    ),
+                    # Status text
+                    html.Div(
+                        f"Fetching news for {symbols_text}...",
+                        className="loading-status-text",
+                    ),
+                    # Sub-text
+                    html.Div(
+                        "Analyzing sentiment and generating insights",
+                        className="loading-subtext",
+                    ),
+                ],
+                className="news-loading-state",
+            ),
+        ],
+        className="news-loading-container",
+    )
+
+
+def _build_overall_tab_content(
+    articles_by_symbol: dict,
+    analysis_by_symbol: dict,
+    overall_analysis: dict,
+    symbols: list,
+) -> html.Div:
+    """Build content for the Overall tab with summary table and combined analysis.
+
+    Args:
+        articles_by_symbol: Dict mapping symbol -> list of articles
+        analysis_by_symbol: Dict mapping symbol -> analysis dict
+        overall_analysis: Combined analysis across all symbols
+        symbols: List of all selected symbols
+
+    Returns:
+        Overall tab content component
+    """
+    children = []
+
+    # Collect all articles for stats
+    all_articles = []
+    for sym_articles in articles_by_symbol.values():
+        all_articles.extend(sym_articles or [])
+
+    # -- AI Summary (digest of all symbols) --
+    # Build a comprehensive summary from per-symbol analyses
+    if analysis_by_symbol:
+        summary_parts = []
+
+        # Count recommendations
+        rec_counts = {"bullish": 0, "bearish": 0, "neutral": 0}
+        for symbol in symbols:
+            sym_analysis = analysis_by_symbol.get(symbol, {})
+            rec = sym_analysis.get("recommendation", "").lower()
+            if "bullish" in rec:
+                rec_counts["bullish"] += 1
+            elif "bearish" in rec:
+                rec_counts["bearish"] += 1
+            else:
+                rec_counts["neutral"] += 1
+
+        # Build summary text
+        total_symbols = len(symbols)
+        if rec_counts["bullish"] > 0:
+            summary_parts.append(f"{rec_counts['bullish']} of {total_symbols} stocks show bullish signals")
+        if rec_counts["bearish"] > 0:
+            summary_parts.append(f"{rec_counts['bearish']} of {total_symbols} stocks show bearish signals")
+        if rec_counts["neutral"] > 0 and rec_counts["bullish"] == 0 and rec_counts["bearish"] == 0:
+            summary_parts.append(f"All {total_symbols} stocks show neutral sentiment")
+
+        # Add overall key developments if available
+        if overall_analysis and overall_analysis.get("key_developments"):
+            summary_parts.append(overall_analysis.get("key_developments", ""))
+
+        if summary_parts:
+            ai_summary = html.Div(
+                [
+                    html.Div("AI Summary", className="section-title"),
+                    html.Div(
+                        ". ".join(summary_parts) if len(summary_parts) > 1 else summary_parts[0],
+                        className="key-developments-content",
+                    ),
+                ],
+                className="key-developments",
+            )
+            children.append(ai_summary)
+    elif overall_analysis and overall_analysis.get("key_developments"):
+        ai_summary = html.Div(
+            [
+                html.Div("AI Summary", className="section-title"),
+                html.Div(
+                    overall_analysis.get("key_developments", ""),
+                    className="key-developments-content",
+                ),
+            ],
+            className="key-developments",
+        )
+        children.append(ai_summary)
+
+    # -- Per-Symbol Recommendations Table --
+    if symbols and analysis_by_symbol:
+        table_rows = []
+        for symbol in symbols:
+            sym_analysis = analysis_by_symbol.get(symbol, {})
+            sym_articles = articles_by_symbol.get(symbol, [])
+
+            rec = sym_analysis.get("recommendation", "—")
+            confidence = sym_analysis.get("confidence")
+            article_count = len(sym_articles)
+
+            # Determine color class for recommendation
+            rec_lower = rec.lower() if rec != "—" else ""
+            if "bullish" in rec_lower:
+                rec_class = "rec-bullish"
+            elif "bearish" in rec_lower:
+                rec_class = "rec-bearish"
+            else:
+                rec_class = "rec-neutral"
+
+            # Format recommendation display
+            rec_display = rec.replace("_", " ") if rec != "—" else "—"
+
+            # Format confidence
+            conf_display = f"{int(confidence * 100)}%" if confidence else "—"
+
+            table_rows.append(
+                html.Tr(
+                    [
+                        html.Td(symbol, className="symbol-cell"),
+                        html.Td(
+                            rec_display,
+                            className=f"recommendation-cell {rec_class}",
+                        ),
+                        html.Td(conf_display, className="confidence-cell"),
+                        html.Td(str(article_count), className="articles-cell"),
+                    ]
+                )
+            )
+
+        recommendations_table = html.Div(
+            [
+                html.Div("Recommendations by Symbol", className="section-title"),
+                html.Table(
+                    [
+                        html.Thead(
+                            html.Tr(
+                                [
+                                    html.Th("Symbol"),
+                                    html.Th("Recommendation"),
+                                    html.Th("Confidence"),
+                                    html.Th("Articles"),
+                                ]
+                            )
+                        ),
+                        html.Tbody(table_rows),
+                    ],
+                    className="recommendations-table",
+                ),
+            ],
+            className="recommendations-section",
+        )
+        children.append(recommendations_table)
+
+    # -- Aggregated Sentiment Breakdown --
+    sentiment_counts = {"bullish": 0, "neutral": 0, "bearish": 0}
+    for a in all_articles:
+        s = (a.get("sentiment") or "neutral").lower()
+        if "bullish" in s:
+            sentiment_counts["bullish"] += 1
+        elif "bearish" in s:
+            sentiment_counts["bearish"] += 1
+        else:
+            sentiment_counts["neutral"] += 1
+
+    if any(sentiment_counts.values()):
+        sentiment_breakdown = create_sentiment_breakdown(
+            bullish=sentiment_counts["bullish"],
+            neutral=sentiment_counts["neutral"],
+            bearish=sentiment_counts["bearish"],
+        )
+        children.append(sentiment_breakdown)
+
+    # -- Quick Stats --
+    if all_articles:
+        sources = list(set(a.get("source", "") for a in all_articles if a.get("source")))
+        quick_stats = create_news_quick_stats(
+            article_count=len(all_articles),
+            source_count=len(sources),
+            date_range=_get_date_range(all_articles),
+            symbols=symbols,
+        )
+        children.append(quick_stats)
+
+    # Handle empty state
+    if not children:
+        children.append(
+            html.Div(
+                [
+                    html.I(className="bi bi-newspaper", style={"fontSize": "24px", "opacity": "0.5", "marginBottom": "8px"}),
+                    html.P("No news available for selected stocks", style={"color": "#6B7280", "margin": "0"}),
+                ],
+                className="tab-empty-state",
+                style={"textAlign": "center", "padding": "32px 16px"},
+            )
+        )
+
+    return html.Div(children, className="tab-content-inner")
+
+
+def _build_tab_content(
+    articles: list,
+    analysis: dict,
+    symbols: list,
+    is_overall: bool = False,
+) -> html.Div:
+    """Build content for a single tab (overall or per-symbol).
+
+    Args:
+        articles: List of article dictionaries for this tab
+        analysis: AI analysis dictionary for this tab
+        symbols: List of symbols (single symbol for per-symbol tab)
+        is_overall: True if this is the Overall tab
+
+    Returns:
+        Tab content component
+    """
+    children = []
+
+    # -- Recommendation Banner --
+    if analysis and analysis.get("recommendation"):
+        rec_banner = create_recommendation_banner(
+            recommendation=analysis.get("recommendation", "NEUTRAL"),
+            confidence=analysis.get("confidence"),
+            article_count=len(articles),
+            date_range=_get_date_range(articles),
+        )
+    elif articles:
+        # Show loading state while waiting for AI analysis
+        rec_banner = create_recommendation_banner(recommendation="LOADING")
+    else:
+        rec_banner = None
+
+    if rec_banner:
+        children.append(rec_banner)
+
+    # -- Key Developments --
+    if analysis and analysis.get("key_developments"):
+        key_dev = html.Div(
+            [
+                html.Div("Key Developments", className="section-title"),
+                html.Div(
+                    analysis.get("key_developments", ""),
+                    className="key-developments-content",
+                ),
+            ],
+            className="key-developments",
+        )
+        children.append(key_dev)
+
+    # -- Top Headlines --
+    if articles:
+        top_headlines = create_top_headlines(articles, max_count=5)
+        children.append(top_headlines)
+
+    # -- Sentiment Breakdown --
+    sentiment_counts = {"bullish": 0, "neutral": 0, "bearish": 0}
+    for a in articles:
+        s = (a.get("sentiment") or "neutral").lower()
+        if "bullish" in s:
+            sentiment_counts["bullish"] += 1
+        elif "bearish" in s:
+            sentiment_counts["bearish"] += 1
+        else:
+            sentiment_counts["neutral"] += 1
+
+    if any(sentiment_counts.values()):
+        sentiment_breakdown = create_sentiment_breakdown(
+            bullish=sentiment_counts["bullish"],
+            neutral=sentiment_counts["neutral"],
+            bearish=sentiment_counts["bearish"],
+        )
+        children.append(sentiment_breakdown)
+
+    # -- Quick Stats --
+    if articles:
+        sources = list(set(a.get("source", "") for a in articles if a.get("source")))
+        quick_stats = create_news_quick_stats(
+            article_count=len(articles),
+            source_count=len(sources),
+            date_range=_get_date_range(articles),
+            symbols=symbols if is_overall else None,
+        )
+        children.append(quick_stats)
+
+    # Handle empty state for this tab
+    if not children:
+        label = "all stocks" if is_overall else symbols[0] if symbols else "this stock"
+        children.append(
+            html.Div(
+                [
+                    html.I(className="bi bi-newspaper", style={"fontSize": "24px", "opacity": "0.5", "marginBottom": "8px"}),
+                    html.P(f"No news available for {label}", style={"color": "#6B7280", "margin": "0"}),
+                ],
+                className="tab-empty-state",
+                style={"textAlign": "center", "padding": "32px 16px"},
+            )
+        )
+
+    return html.Div(children, className="tab-content-inner")
+
+
+def _get_date_range(articles: list) -> str:
+    """Get formatted date range from articles list."""
+    if not articles:
+        return ""
+
+    dates = []
+    for a in articles:
+        pub = a.get("published_at")
+        if pub:
+            try:
+                if isinstance(pub, str):
+                    dt = datetime.fromisoformat(pub)
+                else:
+                    dt = pub
+                dates.append(dt)
+            except (ValueError, TypeError):
+                continue
+
+    if not dates:
+        return ""
+
+    oldest = min(dates)
+    newest = max(dates)
+
+    if oldest.date() == newest.date():
+        return newest.strftime("%b %d")
+    else:
+        return f"{oldest.strftime('%b %d')} - {newest.strftime('%b %d')}"
+
+
+@callback(
     Output("llm-status", "children"),
     Input("news-data-store", "data"),
 )
-def update_ai_summary(news_data):
-    """Update AI-generated summary from cached news data."""
+def update_llm_status(news_data):
+    """Update LLM status indicator in panel header."""
     llm = get_llm()
 
     if not llm.is_available():
-        status = "LLM: Offline"
-        return html.Div("LLM not available. Start LM Studio or configure OpenAI API key.", className="text-muted"), status
+        return "LLM: Offline"
 
-    if not news_data or not news_data.get("articles"):
-        return "", f"LLM: {llm.provider}"
-
-    symbol = news_data.get("symbol", "")
-
-    # Use articles directly from the store (already in dict format)
-    article_dicts = [
-        {"title": a["title"], "summary": a.get("summary") or ""}
-        for a in news_data["articles"]
-    ]
-
-    if not article_dicts:
-        return html.Div("No news to summarize", className="text-muted"), f"LLM: {llm.provider}"
-
-    summary = llm.summarize_news(article_dicts, symbol)
-
-    if summary:
-        return dcc.Markdown(summary, className="ai-summary-content"), f"LLM: {llm.provider}"
-    else:
-        return html.Div("Could not generate summary", className="text-muted"), f"LLM: {llm.provider}"
+    return f"LLM: {llm.provider}"
 
 
 @callback(
@@ -871,6 +1222,23 @@ def export_data(export_click, modal_export_click, symbols):
     except Exception as e:
         print(f"Export error: {e}")
         raise PreventUpdate
+
+
+# =============================================================================
+# TAB NAVIGATION CALLBACK
+# =============================================================================
+
+
+@callback(
+    Output("news-tabs", "active_tab"),
+    Input("see-all-news-link", "n_clicks"),
+    prevent_initial_call=True,
+)
+def switch_to_news_tab(n_clicks):
+    """Switch to News tab when 'See all' link is clicked."""
+    if n_clicks:
+        return "tab-news"
+    raise PreventUpdate
 
 
 # =============================================================================

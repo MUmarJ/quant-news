@@ -492,3 +492,287 @@ def create_error_alert(message: str) -> dbc.Alert:
         dismissable=True,
         className="error-alert",
     )
+
+
+def create_recommendation_banner(
+    recommendation: str,
+    confidence: Optional[float] = None,
+    article_count: int = 0,
+    date_range: Optional[str] = None,
+) -> html.Div:
+    """Create the prominent recommendation banner for Overview tab.
+
+    Args:
+        recommendation: One of BULLISH, CAUTIOUS_BULLISH, NEUTRAL,
+                       CAUTIOUS_BEARISH, BEARISH, or LOADING
+        confidence: Optional confidence score 0-1
+        article_count: Number of articles analyzed
+        date_range: Date range string (e.g., "Jan 15-18")
+
+    Returns:
+        Styled recommendation banner component.
+    """
+    # Handle loading state
+    if recommendation == "LOADING":
+        return html.Div(
+            [
+                html.Div("Analyzing...", className="recommendation-label"),
+                html.Div("Processing news articles", className="recommendation-meta"),
+            ],
+            className="recommendation-banner loading",
+        )
+
+    # Map recommendation to CSS class
+    rec_lower = recommendation.lower().replace(" ", "_")
+    if "bullish" in rec_lower:
+        css_class = "bullish"
+    elif "bearish" in rec_lower:
+        css_class = "bearish"
+    else:
+        css_class = "neutral"
+
+    # Format display text
+    display_text = recommendation.upper().replace("_", " ")
+
+    # Build children
+    children = [html.Div(display_text, className="recommendation-label")]
+
+    # Add confidence text
+    if confidence is not None:
+        confidence_pct = int(confidence * 100)
+        children.append(
+            html.Div(f"Confidence: {confidence_pct}%", className="recommendation-confidence")
+        )
+
+    # Build meta text
+    meta_parts = []
+    if article_count > 0:
+        meta_parts.append(f"Based on {article_count} article{'s' if article_count != 1 else ''}")
+    if date_range:
+        meta_parts.append(f"from {date_range}")
+    if meta_parts:
+        children.append(
+            html.Div(" ".join(meta_parts), className="recommendation-meta")
+        )
+
+    return html.Div(
+        children,
+        className=f"recommendation-banner {css_class}",
+    )
+
+
+def create_sentiment_breakdown(
+    bullish: int,
+    neutral: int,
+    bearish: int,
+    avg_score: Optional[float] = None,
+) -> html.Div:
+    """Create visual sentiment breakdown with progress bars.
+
+    Args:
+        bullish: Count of bullish articles
+        neutral: Count of neutral articles
+        bearish: Count of bearish articles
+        avg_score: Optional average sentiment score (-1 to 1)
+
+    Returns:
+        Styled sentiment breakdown component.
+    """
+    total = bullish + neutral + bearish
+    if total == 0:
+        return html.Div(
+            "No sentiment data available",
+            className="sentiment-breakdown",
+            style={"color": COLORS.TEXT_MUTED, "fontSize": "13px"},
+        )
+
+    # Calculate percentages
+    bullish_pct = (bullish / total) * 100
+    neutral_pct = (neutral / total) * 100
+    bearish_pct = (bearish / total) * 100
+
+    return html.Div(
+        [
+            html.Div("Sentiment Analysis", className="section-title"),
+            html.Div(
+                [
+                    # Bullish row
+                    html.Div(
+                        [
+                            html.Span("Bullish", className="sentiment-bar-label"),
+                            html.Div(
+                                html.Div(
+                                    className="sentiment-bar-fill bullish",
+                                    style={"width": f"{bullish_pct}%"},
+                                ),
+                                className="sentiment-bar-track",
+                            ),
+                            html.Span(str(bullish), className="sentiment-bar-count"),
+                        ],
+                        className="sentiment-bar-row",
+                    ),
+                    # Neutral row
+                    html.Div(
+                        [
+                            html.Span("Neutral", className="sentiment-bar-label"),
+                            html.Div(
+                                html.Div(
+                                    className="sentiment-bar-fill neutral",
+                                    style={"width": f"{neutral_pct}%"},
+                                ),
+                                className="sentiment-bar-track",
+                            ),
+                            html.Span(str(neutral), className="sentiment-bar-count"),
+                        ],
+                        className="sentiment-bar-row",
+                    ),
+                    # Bearish row
+                    html.Div(
+                        [
+                            html.Span("Bearish", className="sentiment-bar-label"),
+                            html.Div(
+                                html.Div(
+                                    className="sentiment-bar-fill bearish",
+                                    style={"width": f"{bearish_pct}%"},
+                                ),
+                                className="sentiment-bar-track",
+                            ),
+                            html.Span(str(bearish), className="sentiment-bar-count"),
+                        ],
+                        className="sentiment-bar-row",
+                    ),
+                ],
+                className="sentiment-bars",
+            ),
+        ],
+        className="sentiment-breakdown",
+    )
+
+
+def create_top_headlines(
+    articles: list[dict],
+    max_count: int = 3,
+) -> html.Div:
+    """Create top headlines preview for Overview tab.
+
+    Args:
+        articles: List of article dictionaries with title, url, source, published_at
+        max_count: Maximum number of headlines to show
+
+    Returns:
+        Styled headlines component with "See all" link.
+    """
+    if not articles:
+        return html.Div(
+            [
+                html.Div("Top Headlines", className="section-title"),
+                html.Div(
+                    "No headlines available",
+                    style={"color": COLORS.TEXT_MUTED, "fontSize": "13px"},
+                ),
+            ],
+            className="top-headlines",
+        )
+
+    # Get top articles
+    top_articles = articles[:max_count]
+    total_count = len(articles)
+
+    headline_items = []
+    for article in top_articles:
+        title = article.get("title", "Untitled")
+        url = article.get("url", "#")
+        source = article.get("source", "")
+
+        headline_items.append(
+            html.Li(
+                [
+                    html.A(
+                        title,
+                        href=url,
+                        target="_blank",
+                        className="headline-link",
+                    ),
+                    html.Div(source, className="headline-meta") if source else None,
+                ],
+                className="headline-item",
+            )
+        )
+
+    children = [
+        html.Div("Top Headlines", className="section-title"),
+        html.Ul(headline_items, className="headline-list"),
+    ]
+
+    # Add "See all" link if there are more articles
+    if total_count > max_count:
+        children.append(
+            html.Span(
+                f"See all {total_count} articles →",
+                id="see-all-news-link",
+                className="see-all-link",
+            )
+        )
+
+    return html.Div(children, className="top-headlines")
+
+
+def create_news_quick_stats(
+    article_count: int,
+    source_count: int,
+    date_range: Optional[str] = None,
+    symbols: Optional[list[str]] = None,
+) -> html.Div:
+    """Create quick stats summary for Overview tab.
+
+    Args:
+        article_count: Total number of articles
+        source_count: Number of unique sources
+        date_range: Date range string (e.g., "Jan 15-18")
+        symbols: List of stock symbols covered
+
+    Returns:
+        Styled quick stats grid component.
+    """
+    stats = [
+        {"value": str(article_count), "label": "Articles"},
+        {"value": str(source_count), "label": "Sources"},
+    ]
+
+    if symbols:
+        stats.append({"value": str(len(symbols)), "label": "Stocks"})
+
+    if date_range:
+        stats.append({"value": date_range, "label": "Date Range"})
+
+    return html.Div(
+        [
+            html.Div(
+                [
+                    html.Div(stat["value"], className="quick-stat-value"),
+                    html.Div(stat["label"], className="quick-stat-label"),
+                ],
+                className="quick-stat-item",
+            )
+            for stat in stats
+        ],
+        className="quick-stats",
+    )
+
+
+def create_overview_empty_state() -> html.Div:
+    """Create empty state for Overview tab when no data is available.
+
+    Returns:
+        Styled empty state component.
+    """
+    return html.Div(
+        [
+            html.I(className="bi bi-graph-up empty-icon"),
+            html.P(
+                "Select stocks to view news analysis and recommendations",
+                className="empty-message",
+            ),
+        ],
+        className="overview-empty-state",
+    )
