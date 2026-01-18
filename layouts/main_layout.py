@@ -259,73 +259,32 @@ def create_main_content() -> html.Div:
 
 
 def create_context_panel() -> html.Div:
-    """Create the right context panel with news and insights.
+    """Create the right context panel with dynamic per-symbol tabs.
 
     Returns:
-        Context panel div component.
+        Context panel div component with:
+        - Panel header with LLM status
+        - Dynamic tabs container (populated by callback based on selected symbols)
+
+    Tab structure: [ Overall ] [ AAPL ] [ GOOGL ] [ MSFT ] ...
+    Each symbol gets its own tab with recommendation + news + sentiment.
     """
     return html.Div(
         [
-            # News Section
+            # Panel header (stays outside tabs)
             html.Div(
                 [
-                    html.Div(
-                        [
-                            html.H3("Latest News", className="panel-title"),
-                            html.Span(id="news-meta", className="news-meta-info"),
-                        ],
-                        className="panel-title-row",
-                    ),
-                    dcc.Loading(
-                        html.Div(id="news-feed", className="news-feed"),
-                        type="circle",
-                        color="#00D4AA",
-                    ),
+                    html.H2("Analysis", className="panel-main-title"),
+                    html.Span(id="llm-status", className="llm-status-badge"),
                 ],
-                className="news-section",
+                className="panel-header-row",
             ),
 
-            html.Hr(className="panel-divider"),
-
-            # AI Summary Section
-            html.Div(
-                [
-                    html.H3("AI Summary", className="panel-title"),
-                    html.Div(
-                        [
-                            html.Span(id="llm-status", className="llm-status-badge"),
-                        ],
-                        className="llm-status-row",
-                    ),
-                    dcc.Loading(
-                        html.Div(id="ai-summary", className="ai-summary"),
-                        type="circle",
-                        color="#00D4AA",
-                    ),
-                ],
-                className="ai-section",
-            ),
-
-            html.Hr(className="panel-divider"),
-
-            # Sentiment Section
-            html.Div(
-                [
-                    html.H3("Sentiment", className="panel-title"),
-                    html.Div(id="sentiment-display", className="sentiment-display"),
-                ],
-                className="sentiment-section",
-            ),
-
-            html.Hr(className="panel-divider"),
-
-            # Technical Signals
-            html.Div(
-                [
-                    html.H3("Signals", className="panel-title"),
-                    html.Div(id="signals-display", className="signals-display"),
-                ],
-                className="signals-section",
+            # Dynamic tabs container - populated by update_symbol_tabs callback
+            dcc.Loading(
+                html.Div(id="symbol-tabs-container"),
+                type="circle",
+                color="#00D4AA",
             ),
         ],
         className="context-panel",
@@ -385,6 +344,7 @@ def create_layout() -> html.Div:
             dcc.Store(id="current-period", data="1y"),
             dcc.Store(id="stock-data-store", data={}),
             dcc.Store(id="news-data-store", data={}),
+            dcc.Store(id="ai-analysis-store", data={}),
             dcc.Store(id="cache-enabled", data=True),
 
             # Download component for exports

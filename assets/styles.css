@@ -1024,3 +1024,517 @@ body {
         grid-template-columns: repeat(2, 1fr);
     }
 }
+
+/* =============================================================================
+   NEWS TABS
+   ============================================================================= */
+
+.news-tabs {
+    margin-bottom: 0;
+}
+
+.news-tabs .nav-tabs {
+    border-bottom: 1px solid var(--border-subtle);
+    gap: 0;
+    padding: 0;
+    margin-bottom: var(--space-4);
+}
+
+.news-tabs .nav-link {
+    color: var(--text-muted);
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: var(--space-2) var(--space-3);
+    border: none;
+    border-radius: 0;
+    background: transparent;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    transition: all var(--duration-fast) var(--easing-default);
+}
+
+.news-tabs .nav-link:hover {
+    color: var(--text-secondary);
+    background: transparent;
+    border-color: transparent;
+}
+
+.news-tabs .nav-link.active {
+    color: var(--accent-primary);
+    border-bottom-color: var(--accent-primary);
+    background: transparent;
+}
+
+.news-tabs .tab-content {
+    padding-top: 0;
+}
+
+.news-tabs .tab-pane {
+    animation: fadeInTab var(--duration-normal) var(--easing-default);
+}
+
+@keyframes fadeInTab {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* =============================================================================
+   RECOMMENDATION BANNER
+   ============================================================================= */
+
+.recommendation-banner {
+    padding: var(--space-4);
+    border-radius: var(--card-radius);
+    margin-bottom: var(--space-4);
+    text-align: center;
+}
+
+.recommendation-banner.bullish {
+    background: linear-gradient(135deg, var(--positive-muted) 0%, rgba(0, 200, 5, 0.05) 100%);
+    border: 1px solid rgba(0, 200, 5, 0.3);
+}
+
+.recommendation-banner.bearish {
+    background: linear-gradient(135deg, var(--negative-muted) 0%, rgba(255, 80, 0, 0.05) 100%);
+    border: 1px solid rgba(255, 80, 0, 0.3);
+}
+
+.recommendation-banner.neutral {
+    background: linear-gradient(135deg, rgba(255, 215, 0, 0.1) 0%, rgba(255, 215, 0, 0.02) 100%);
+    border: 1px solid rgba(255, 215, 0, 0.3);
+}
+
+.recommendation-banner.loading {
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-subtle);
+}
+
+.recommendation-label {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    margin-bottom: var(--space-1);
+}
+
+.recommendation-banner.bullish .recommendation-label {
+    color: var(--positive);
+}
+
+.recommendation-banner.bearish .recommendation-label {
+    color: var(--negative);
+}
+
+.recommendation-banner.neutral .recommendation-label {
+    color: var(--neutral);
+}
+
+.recommendation-banner.loading .recommendation-label {
+    color: var(--text-muted);
+    font-size: 14px;
+}
+
+.recommendation-confidence {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-bottom: var(--space-1);
+}
+
+.recommendation-meta {
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+/* =============================================================================
+   KEY DEVELOPMENTS SECTION
+   ============================================================================= */
+
+.key-developments {
+    margin-bottom: var(--space-4);
+}
+
+.section-title {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: var(--space-2);
+}
+
+.key-developments-content {
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+}
+
+/* =============================================================================
+   SENTIMENT BREAKDOWN
+   ============================================================================= */
+
+.sentiment-breakdown {
+    margin-bottom: var(--space-4);
+}
+
+.sentiment-bars {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.sentiment-bar-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+}
+
+.sentiment-bar-label {
+    font-size: 11px;
+    color: var(--text-secondary);
+    width: 60px;
+}
+
+.sentiment-bar-track {
+    flex: 1;
+    height: 8px;
+    background: var(--bg-tertiary);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.sentiment-bar-fill {
+    height: 100%;
+    border-radius: 4px;
+    transition: width var(--duration-normal) var(--easing-default);
+}
+
+.sentiment-bar-fill.bullish {
+    background: var(--positive);
+}
+
+.sentiment-bar-fill.neutral {
+    background: var(--text-muted);
+}
+
+.sentiment-bar-fill.bearish {
+    background: var(--negative);
+}
+
+.sentiment-bar-count {
+    font-size: 11px;
+    font-family: var(--font-mono);
+    color: var(--text-muted);
+    width: 24px;
+    text-align: right;
+}
+
+/* =============================================================================
+   TOP HEADLINES SECTION
+   ============================================================================= */
+
+.top-headlines {
+    margin-bottom: var(--space-4);
+}
+
+.headline-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.headline-item {
+    padding: var(--space-2) 0;
+    border-bottom: 1px solid var(--border-subtle);
+}
+
+.headline-item:last-child {
+    border-bottom: none;
+}
+
+.headline-link {
+    font-size: 13px;
+    color: var(--text-primary);
+    text-decoration: none;
+    display: block;
+    line-height: 1.4;
+    transition: color var(--duration-fast) var(--easing-default);
+}
+
+.headline-link:hover {
+    color: var(--accent-primary);
+}
+
+.headline-meta {
+    font-size: 10px;
+    color: var(--text-muted);
+    margin-top: var(--space-1);
+}
+
+.see-all-link {
+    display: block;
+    margin-top: var(--space-3);
+    font-size: 12px;
+    color: var(--accent-primary);
+    text-decoration: none;
+    cursor: pointer;
+    transition: color var(--duration-fast) var(--easing-default);
+}
+
+.see-all-link:hover {
+    color: var(--accent-hover);
+}
+
+/* =============================================================================
+   QUICK STATS
+   ============================================================================= */
+
+.quick-stats {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--space-3);
+    padding: var(--space-3);
+    background: var(--bg-tertiary);
+    border-radius: 8px;
+    margin-bottom: var(--space-4);
+}
+
+.quick-stat-item {
+    text-align: center;
+}
+
+.quick-stat-value {
+    font-size: 18px;
+    font-weight: 700;
+    font-family: var(--font-mono);
+    color: var(--text-primary);
+}
+
+.quick-stat-label {
+    font-size: 10px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* =============================================================================
+   PANEL HEADER ROW
+   ============================================================================= */
+
+.panel-header-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--space-3);
+}
+
+.panel-main-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0;
+}
+
+/* =============================================================================
+   OVERVIEW TAB EMPTY STATE
+   ============================================================================= */
+
+.overview-empty-state {
+    text-align: center;
+    padding: var(--space-6) var(--space-4);
+    color: var(--text-muted);
+}
+
+.overview-empty-state .empty-icon {
+    font-size: 32px;
+    margin-bottom: var(--space-3);
+    opacity: 0.5;
+}
+
+.overview-empty-state .empty-message {
+    font-size: 13px;
+    max-width: 240px;
+    margin: 0 auto;
+    line-height: 1.5;
+}
+
+/* =============================================================================
+   RECOMMENDATIONS TABLE (Overall Tab)
+   ============================================================================= */
+
+.recommendations-section {
+    margin-bottom: var(--space-4);
+}
+
+.recommendations-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+
+.recommendations-table thead {
+    border-bottom: 1px solid var(--border-subtle);
+}
+
+.recommendations-table th {
+    text-align: left;
+    padding: var(--space-2) var(--space-2);
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.recommendations-table td {
+    padding: var(--space-3) var(--space-2);
+    border-bottom: 1px solid var(--border-subtle);
+    vertical-align: middle;
+}
+
+.recommendations-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.recommendations-table tbody tr:hover {
+    background: var(--bg-tertiary);
+}
+
+.recommendations-table .symbol-cell {
+    font-weight: 600;
+    font-family: var(--font-mono);
+    color: var(--text-primary);
+}
+
+.recommendations-table .recommendation-cell {
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+.recommendations-table .recommendation-cell.rec-bullish {
+    color: var(--positive);
+}
+
+.recommendations-table .recommendation-cell.rec-bearish {
+    color: var(--negative);
+}
+
+.recommendations-table .recommendation-cell.rec-neutral {
+    color: var(--neutral);
+}
+
+.recommendations-table .confidence-cell {
+    font-family: var(--font-mono);
+    color: var(--text-secondary);
+    text-align: center;
+}
+
+.recommendations-table .articles-cell {
+    font-family: var(--font-mono);
+    color: var(--text-muted);
+    text-align: center;
+}
+
+/* Symbol tabs styling */
+.symbol-tabs {
+    margin-bottom: 0;
+}
+
+.symbol-tabs .nav-tabs {
+    border-bottom: 1px solid var(--border-subtle);
+    gap: var(--space-1);
+    padding: 0 var(--space-2);
+    margin-bottom: var(--space-4);
+    flex-wrap: wrap;
+}
+
+.symbol-tabs .nav-link {
+    color: var(--text-muted);
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: var(--space-3) var(--space-4);
+    border: none;
+    border-radius: 0;
+    background: transparent;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    transition: all var(--duration-fast) var(--easing-default);
+    min-width: 60px;
+    text-align: center;
+}
+
+.symbol-tabs .nav-link:hover {
+    color: var(--text-secondary);
+    background: rgba(255, 255, 255, 0.03);
+    border-color: transparent;
+}
+
+.symbol-tabs .nav-link.active {
+    color: var(--accent-primary);
+    border-bottom-color: var(--accent-primary);
+    background: rgba(0, 212, 170, 0.05);
+}
+
+.symbol-tabs .tab-content {
+    padding-top: var(--space-2);
+}
+
+.symbol-tabs .tab-pane {
+    animation: fadeInTab var(--duration-normal) var(--easing-default);
+}
+
+.tab-content-inner {
+    padding: 0;
+}
+
+/* =============================================================================
+   NEWS LOADING STATE
+   ============================================================================= */
+
+.news-loading-container {
+    padding: var(--space-4);
+}
+
+.news-loading-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-8) var(--space-4);
+    text-align: center;
+}
+
+.loading-spinner-container {
+    margin-bottom: var(--space-5);
+}
+
+.loading-spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid var(--border-subtle);
+    border-top-color: var(--accent-primary);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.loading-status-text {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-primary);
+    margin-bottom: var(--space-2);
+}
+
+.loading-subtext {
+    font-size: 12px;
+    color: var(--text-muted);
+}

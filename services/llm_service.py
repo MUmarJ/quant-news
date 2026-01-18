@@ -4,6 +4,7 @@ This module provides integration with LM Studio (local) and OpenAI (cloud)
 for generating news summaries and sentiment analysis.
 """
 
+import json
 from typing import Optional
 
 import requests
@@ -201,6 +202,174 @@ Respond using this EXACT markdown format:
 [One sentence explaining your recommendation. No counterpoints.]"""
 
         return self.generate(prompt, system_prompt, max_tokens=450)
+
+    def summarize_news_structured(
+        self,
+        articles: list[dict],
+        symbols: list[str],
+    ) -> Optional[dict]:
+        """Generate a structured summary of news articles with extractable data.
+
+        Args:
+            articles: List of article dictionaries with 'title', 'summary', 'sentiment'.
+            symbols: List of stock symbols for context.
+
+        Returns:
+            Dictionary with structured analysis data or None if unavailable:
+            {
+                "recommendation": "BULLISH|CAUTIOUS_BULLISH|NEUTRAL|CAUTIOUS_BEARISH|BEARISH",
+                "confidence": 0.0-1.0,
+                "key_developments": "2-3 sentences about the most important news",
+                "market_sentiment": "BULLISH|NEUTRAL|BEARISH",
+                "sentiment_explanation": "One sentence explaining sentiment"
+            }
+        """
+        if not articles:
+            return None
+
+        # Build context from articles
+        article_text = "\n".join([
+            f"- [{a.get('sentiment', 'unknown').upper()}] {a.get('title', '')}: {a.get('summary', '')[:150]}"
+            for a in articles[:10]  # Limit to 10 articles
+        ])
+
+        # Count sentiments
+        sentiment_counts = {"bullish": 0, "neutral": 0, "bearish": 0}
+        for a in articles:
+            s = a.get("sentiment", "neutral").lower()
+            if "bullish" in s:
+                sentiment_counts["bullish"] += 1
+            elif "bearish" in s:
+                sentiment_counts["bearish"] += 1
+            else:
+                sentiment_counts["neutral"] += 1
+
+        symbols_str = ", ".join(symbols) if symbols else "the stocks"
+
+        system_prompt = """You are an objective financial news analyst. Analyze news and respond with ONLY valid JSON.
+
+CRITICAL RULES:
+- Your response must be parseable JSON with no additional text, no markdown code blocks.
+- Commit to ONE clear recommendation based on the evidence.
+- Calculate confidence based on how consistent the news sentiment is."""
+
+        prompt = f"""Analyze these news articles for {symbols_str}:
+
+{article_text}
+
+Sentiment counts: {sentiment_counts['bullish']} bullish, {sentiment_counts['neutral']} neutral, {sentiment_counts['bearish']} bearish
+
+Respond with this exact JSON structure (no markdown, no extra text):
+
+{{"recommendation": "BULLISH|CAUTIOUS_BULLISH|NEUTRAL|CAUTIOUS_BEARISH|BEARISH", "confidence": 0.0-1.0, "key_developments": "2-3 sentences about the most important news developments", "market_sentiment": "BULLISH|NEUTRAL|BEARISH", "sentiment_explanation": "One sentence explaining the overall sentiment"}}"""
+
+        response = self.generate(prompt, system_prompt, max_tokens=400, temperature=0.3)
+
+        if response:
+            try:
+                # Clean and parse JSON
+                clean = response.strip()
+                # Remove potential markdown code blocks
+                if clean.startswith("```"):
+                    lines = clean.split("\n")
+                    # Find content between ``` markers
+                    start_idx = 1 if lines[0].startswith("```") else 0
+                    end_idx = len(lines)
+                    for i in range(len(lines) - 1, 0, -1):
+                        if lines[i].strip() == "```":
+                            end_idx = i
+                            break
+                    clean = "\n".join(lines[start_idx:end_idx])
+                    if clean.startswith("json"):
+                        clean = clean[4:].strip()
+
+                result = json.loads(clean)
+
+                # Validate and normalize the result
+                valid_recommendations = ["BULLISH", "CAUTIOUS_BULLISH", "NEUTRAL", "CAUTIOUS_BEARISH", "BEARISH"]
+                rec = result.get("recommendation", "NEUTRAL").upper().replace(" ", "_")
+                if rec not in valid_recommendations:
+                    rec = "NEUTRAL"
+                result["recommendation"] = rec
+
+                # Ensure confidence is a float between 0 and 1
+                conf = result.get("confidence", 0.5)
+                if isinstance(conf, str):
+                    try:
+                        conf = float(conf)
+                    except ValueError:
+                        conf = 0.5
+                result["confidence"] = max(0.0, min(1.0, conf))
+
+                return result
+
+            except (json.JSONDecodeError, KeyError, TypeError) as e:
+                print(f"Error parsing LLM response: {e}")
+                # Return a fallback based on sentiment counts
+                return self._fallback_analysis(sentiment_counts, articles)
+
+        return self._fallback_analysis(sentiment_counts, articles)
+
+    def _fallback_analysis(
+        self,
+        sentiment_counts: dict,
+        articles: list[dict],
+    ) -> dict:
+        """Generate fallback analysis when LLM fails or is unavailable.
+
+        Args:
+            sentiment_counts: Dictionary with bullish/neutral/bearish counts.
+            articles: List of article dictionaries.
+
+        Returns:
+            Fallback analysis dictionary.
+        """
+        total = sum(sentiment_counts.values())
+        if total == 0:
+            return {
+                "recommendation": "NEUTRAL",
+                "confidence": 0.3,
+                "key_developments": "No news articles available for analysis.",
+                "market_sentiment": "NEUTRAL",
+                "sentiment_explanation": "Insufficient data to determine sentiment.",
+            }
+
+        bullish_pct = sentiment_counts["bullish"] / total
+        bearish_pct = sentiment_counts["bearish"] / total
+
+        # Determine recommendation based on sentiment ratio
+        if bullish_pct > 0.6:
+            rec = "BULLISH"
+            sentiment = "BULLISH"
+            confidence = min(0.9, 0.5 + bullish_pct * 0.4)
+        elif bullish_pct > 0.4:
+            rec = "CAUTIOUS_BULLISH"
+            sentiment = "BULLISH"
+            confidence = 0.6
+        elif bearish_pct > 0.6:
+            rec = "BEARISH"
+            sentiment = "BEARISH"
+            confidence = min(0.9, 0.5 + bearish_pct * 0.4)
+        elif bearish_pct > 0.4:
+            rec = "CAUTIOUS_BEARISH"
+            sentiment = "BEARISH"
+            confidence = 0.6
+        else:
+            rec = "NEUTRAL"
+            sentiment = "NEUTRAL"
+            confidence = 0.5
+
+        # Get top headlines for key developments
+        top_titles = [a.get("title", "") for a in articles[:3] if a.get("title")]
+        key_dev = ". ".join(top_titles[:2]) if top_titles else "Recent news coverage on these stocks."
+
+        return {
+            "recommendation": rec,
+            "confidence": confidence,
+            "key_developments": key_dev,
+            "market_sentiment": sentiment,
+            "sentiment_explanation": f"Based on {total} articles: {sentiment_counts['bullish']} bullish, {sentiment_counts['neutral']} neutral, {sentiment_counts['bearish']} bearish.",
+        }
 
     def analyze_sentiment(
         self,
