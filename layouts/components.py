@@ -565,7 +565,6 @@ def create_sentiment_breakdown(
     bullish: int,
     neutral: int,
     bearish: int,
-    avg_score: Optional[float] = None,
 ) -> html.Div:
     """Create visual sentiment breakdown with progress bars.
 
@@ -573,7 +572,6 @@ def create_sentiment_breakdown(
         bullish: Count of bullish articles
         neutral: Count of neutral articles
         bearish: Count of bearish articles
-        avg_score: Optional average sentiment score (-1 to 1)
 
     Returns:
         Styled sentiment breakdown component.

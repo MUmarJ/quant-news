@@ -5,6 +5,7 @@ for generating news summaries and sentiment analysis.
 """
 
 import json
+import re
 from typing import Optional
 
 import requests
@@ -267,21 +268,14 @@ Respond with this exact JSON structure (no markdown, no extra text):
 
         if response:
             try:
-                # Clean and parse JSON
+                # Clean and parse JSON using regex for robustness
                 clean = response.strip()
-                # Remove potential markdown code blocks
-                if clean.startswith("```"):
-                    lines = clean.split("\n")
-                    # Find content between ``` markers
-                    start_idx = 1 if lines[0].startswith("```") else 0
-                    end_idx = len(lines)
-                    for i in range(len(lines) - 1, 0, -1):
-                        if lines[i].strip() == "```":
-                            end_idx = i
-                            break
-                    clean = "\n".join(lines[start_idx:end_idx])
-                    if clean.startswith("json"):
-                        clean = clean[4:].strip()
+
+                # Use regex to extract JSON object from response
+                # This handles markdown code blocks and extra text
+                match = re.search(r'\{.*\}', clean, re.DOTALL)
+                if match:
+                    clean = match.group(0)
 
                 result = json.loads(clean)
 

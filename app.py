@@ -532,6 +532,8 @@ def fetch_news_data(symbols, refresh_click, cache_enabled):
 def generate_ai_analysis(news_data, symbols):
     """Generate structured AI analysis for each symbol and overall.
 
+    Uses ThreadPoolExecutor to parallelize LLM calls for better performance.
+
     Returns:
         {
             "overall": {...combined analysis...},
@@ -541,6 +543,8 @@ def generate_ai_analysis(news_data, symbols):
             }
         }
     """
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
     if not news_data or not news_data.get("articles_by_symbol"):
         return {}
 
@@ -556,7 +560,8 @@ def generate_ai_analysis(news_data, symbols):
     # Collect all articles for overall analysis
     all_articles = []
 
-    # Generate per-symbol analysis
+    # Prepare tasks for parallel execution
+    symbol_tasks = {}
     for symbol, articles in articles_by_symbol.items():
         if not articles:
             continue
@@ -572,13 +577,10 @@ def generate_ai_analysis(news_data, symbols):
             }
             for a in articles
         ]
+        symbol_tasks[symbol] = article_dicts
 
-        # Get structured analysis for this symbol
-        analysis = llm.summarize_news_structured(article_dicts, [symbol])
-        if analysis:
-            result["by_symbol"][symbol] = analysis
-
-    # Generate overall analysis if we have articles from multiple symbols
+    # Prepare overall analysis task
+    overall_dicts = None
     if all_articles:
         overall_dicts = [
             {
@@ -588,9 +590,33 @@ def generate_ai_analysis(news_data, symbols):
             }
             for a in all_articles
         ]
-        overall_analysis = llm.summarize_news_structured(overall_dicts, symbols or [])
-        if overall_analysis:
-            result["overall"] = overall_analysis
+
+    # Execute LLM calls in parallel
+    with ThreadPoolExecutor(max_workers=min(len(symbol_tasks) + 1, 5)) as executor:
+        futures = {}
+
+        # Submit per-symbol analysis tasks
+        for symbol, article_dicts in symbol_tasks.items():
+            future = executor.submit(llm.summarize_news_structured, article_dicts, [symbol])
+            futures[future] = ("symbol", symbol)
+
+        # Submit overall analysis task
+        if overall_dicts:
+            future = executor.submit(llm.summarize_news_structured, overall_dicts, symbols or [])
+            futures[future] = ("overall", None)
+
+        # Collect results as they complete
+        for future in as_completed(futures):
+            task_type, symbol = futures[future]
+            try:
+                analysis = future.result()
+                if analysis:
+                    if task_type == "symbol":
+                        result["by_symbol"][symbol] = analysis
+                    else:
+                        result["overall"] = analysis
+            except Exception as e:
+                print(f"Error in LLM analysis for {task_type} {symbol}: {e}")
 
     return result
 
@@ -738,9 +764,9 @@ def _build_overall_tab_content(
 
     # -- AI Summary (digest of all symbols) --
     # Build a comprehensive summary from per-symbol analyses
-    if analysis_by_symbol:
-        summary_parts = []
+    summary_parts = []
 
+    if analysis_by_symbol:
         # Count recommendations
         rec_counts = {"bullish": 0, "bearish": 0, "neutral": 0}
         for symbol in symbols:
@@ -762,28 +788,16 @@ def _build_overall_tab_content(
         if rec_counts["neutral"] > 0 and rec_counts["bullish"] == 0 and rec_counts["bearish"] == 0:
             summary_parts.append(f"All {total_symbols} stocks show neutral sentiment")
 
-        # Add overall key developments if available
-        if overall_analysis and overall_analysis.get("key_developments"):
-            summary_parts.append(overall_analysis.get("key_developments", ""))
+    # Add overall key developments if available
+    if overall_analysis and overall_analysis.get("key_developments"):
+        summary_parts.append(overall_analysis.get("key_developments", ""))
 
-        if summary_parts:
-            ai_summary = html.Div(
-                [
-                    html.Div("AI Summary", className="section-title"),
-                    html.Div(
-                        ". ".join(summary_parts) if len(summary_parts) > 1 else summary_parts[0],
-                        className="key-developments-content",
-                    ),
-                ],
-                className="key-developments",
-            )
-            children.append(ai_summary)
-    elif overall_analysis and overall_analysis.get("key_developments"):
+    if summary_parts:
         ai_summary = html.Div(
             [
                 html.Div("AI Summary", className="section-title"),
                 html.Div(
-                    overall_analysis.get("key_developments", ""),
+                    ". ".join(summary_parts) if len(summary_parts) > 1 else summary_parts[0],
                     className="key-developments-content",
                 ),
             ],
@@ -1222,23 +1236,6 @@ def export_data(export_click, modal_export_click, symbols):
     except Exception as e:
         print(f"Export error: {e}")
         raise PreventUpdate
-
-
-# =============================================================================
-# TAB NAVIGATION CALLBACK
-# =============================================================================
-
-
-@callback(
-    Output("news-tabs", "active_tab"),
-    Input("see-all-news-link", "n_clicks"),
-    prevent_initial_call=True,
-)
-def switch_to_news_tab(n_clicks):
-    """Switch to News tab when 'See all' link is clicked."""
-    if n_clicks:
-        return "tab-news"
-    raise PreventUpdate
 
 
 # =============================================================================
