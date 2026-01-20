@@ -8,7 +8,9 @@ Real-time stock analysis dashboard with LLM-powered news insights and technical 
 
 - **Multi-stock comparison** with normalized % change charts
 - **Technical indicators**: SMA (20/50/200), Bollinger Bands, MACD, RSI
-- **Live news feed** with sentiment analysis and AI summaries
+- **Per-symbol news tabs** with AI-powered recommendation banners
+- **Sentiment analysis** with visual breakdowns and confidence scores
+- **Live news feed** with structured LLM summaries
 - **Data export** to Parquet format with DuckDB caching
 
 ## Quick Start
