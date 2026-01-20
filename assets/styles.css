@@ -1538,3 +1538,33 @@ body {
     font-size: 12px;
     color: var(--text-muted);
 }
+
+/* Inline AI Loading Indicator */
+.ai-loading-section {
+    margin-bottom: var(--space-4);
+}
+
+.ai-loading-inline {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-4);
+    background: var(--bg-tertiary);
+    border-radius: var(--card-radius);
+    border: 1px solid var(--border-subtle);
+}
+
+.loading-spinner-small {
+    width: 20px;
+    height: 20px;
+    border: 2px solid var(--border-subtle);
+    border-top-color: var(--accent-primary);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    flex-shrink: 0;
+}
+
+.loading-inline-text {
+    font-size: 13px;
+    color: var(--text-secondary);
+}

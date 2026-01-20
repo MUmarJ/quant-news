@@ -698,16 +698,24 @@ def update_symbol_tabs(news_data, ai_analysis, symbols):
     )
 
 
-def _create_loading_state(symbols: list) -> html.Div:
-    """Create loading state while fetching news data.
+def _create_loading_state(symbols: list, stage: str = "news") -> html.Div:
+    """Create loading state while fetching news data or generating AI analysis.
 
     Args:
         symbols: List of symbols being loaded
+        stage: Loading stage - "news" for fetching news, "analysis" for AI analysis
 
     Returns:
         Loading state component with spinner and status message
     """
     symbols_text = ", ".join(symbols) if len(symbols) <= 3 else f"{len(symbols)} stocks"
+
+    if stage == "news":
+        status_text = f"Fetching news for {symbols_text}..."
+        subtext = "Retrieving latest articles from sources"
+    else:
+        status_text = "Generating AI analysis..."
+        subtext = f"Analyzing sentiment for {symbols_text}"
 
     return html.Div(
         [
@@ -722,12 +730,12 @@ def _create_loading_state(symbols: list) -> html.Div:
                     ),
                     # Status text
                     html.Div(
-                        f"Fetching news for {symbols_text}...",
+                        status_text,
                         className="loading-status-text",
                     ),
                     # Sub-text
                     html.Div(
-                        "Analyzing sentiment and generating insights",
+                        subtext,
                         className="loading-subtext",
                     ),
                 ],
@@ -735,6 +743,22 @@ def _create_loading_state(symbols: list) -> html.Div:
             ),
         ],
         className="news-loading-container",
+    )
+
+
+def _create_ai_loading_indicator() -> html.Div:
+    """Create inline loading indicator for AI analysis section."""
+    return html.Div(
+        [
+            html.Div(
+                [
+                    html.Div(className="loading-spinner-small"),
+                    html.Span("Generating AI insights...", className="loading-inline-text"),
+                ],
+                className="ai-loading-inline",
+            ),
+        ],
+        className="ai-loading-section",
     )
 
 
@@ -763,6 +787,11 @@ def _build_overall_tab_content(
         all_articles.extend(sym_articles or [])
 
     # -- AI Summary (digest of all symbols) --
+    # Show loading indicator if AI analysis is still pending
+    has_ai_analysis = bool(analysis_by_symbol) or bool(overall_analysis)
+    if not has_ai_analysis and all_articles:
+        children.append(_create_ai_loading_indicator())
+
     # Build a comprehensive summary from per-symbol analyses
     summary_parts = []
 
@@ -964,6 +993,9 @@ def _build_tab_content(
             className="key-developments",
         )
         children.append(key_dev)
+    elif articles and not analysis:
+        # Show loading indicator while waiting for AI analysis
+        children.append(_create_ai_loading_indicator())
 
     # -- Top Headlines --
     if articles:
